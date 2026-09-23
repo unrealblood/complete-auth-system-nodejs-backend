@@ -1,0 +1,16 @@
+{
+  "name": "complete-auth-system-nodejs-backend",
+  "version": "1.0.0",
+  "description": "",
+  "author": "Shubham Singh",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "mongodb": "^7.6.0"
+  }
+}
