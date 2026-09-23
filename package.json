@@ -9,8 +9,11 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
-    "mongodb": "^7.6.0"
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.6.0",
+    "morgan": "^1.12.1"
   }
 }
