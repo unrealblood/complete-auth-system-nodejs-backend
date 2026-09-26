@@ -14,10 +14,12 @@ export async function registerUser(req, res) {
         return res.status(409).json({message: "User already exists."});
     }
 
+    const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
+
     const newUser = {
         username,
         email,
-        password
+        password: hashedPassword
     };
 
     const insertResult = await db.collection("users").insertOne(newUser);
@@ -55,6 +57,59 @@ export async function registerUser(req, res) {
     });
 
     return res.status(201).json({message: "User registered successfully", user: newUser, accessToken});
+}
+
+export async function login(req, res) {
+    const {email, password} = req.body;
+
+    const client = await connectAndGetMongoDbClient();
+    const db = client.db();
+
+    const user = await db.collection("users").findOne({email});
+
+    if(!user) {
+        return res.status(401).json({message: "invalid email or password"});
+    }
+
+    const hashedPassword = crypto.createHash("sha256").update(password).digest("hex");
+    const isValidPassword = user.password === hashedPassword;
+
+    if(!isValidPassword) {
+        return res.status(401).json({message: "invalid email or password"});
+    }
+
+    const refreshToken = jwt.sign({id: user._id.toString()}, process.env.JWT_SECRET, {expiresIn: "30d"});
+
+    const refreshTokenHash = crypto.createHash("sha256").update(refreshToken).digest("hex");
+
+    const newSession = {
+        userId: user._id,
+        refreshTokenHash,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        createdAt:new Date(),
+        updatedAt:new Date(),
+        revoked: false
+    };
+
+    const sessionInsertResult = await db.collection("sessions").insertOne(newSession);
+    newSession._id = sessionInsertResult.insertedId.toString();
+
+    await client.close();
+
+    const accessToken = jwt.sign({
+        id: user._id.toString(),
+        sessionId: newSession._id
+    }, process.env.JWT_SECRET, {expiresIn: "15m"});
+
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+        expiresIn: 30 * 24 * 60 * 60 * 1000 //30 days
+    });
+
+    return res.status(200).json({message: "login successfull", user, accessToken});
 }
 
 export async function refreshToken(req, res) {
@@ -127,4 +182,28 @@ export async function logout(req, res) {
     res.clearCookie("refreshToken");
     
     return res.status(200).json({message: "logged out successfully"});
+}
+
+export async function logoutAll(req, res) {
+    const refreshToken = req.cookies.refreshToken;
+
+    if(!refreshToken) {
+        return res.status(400).json({message: "refresh token not found"});
+    }
+
+    try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+
+        const client = await connectAndGetMongoDbClient();
+        const db = client.db();
+
+        await db.collection("sessions").updateMany({userId: ObjectId.createFromHexString(decoded.id), revoked: false}, {$set: {"revoked": true}});
+
+        res.clearCookie("refreshToken");
+
+        return res.status(200).json({message: "logged out of all devices successfully"});
+    }
+    catch(error) {
+        return res.status(401).json({message: error.message});
+    }
 }
