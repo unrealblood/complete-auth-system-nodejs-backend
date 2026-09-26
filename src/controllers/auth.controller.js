@@ -199,6 +199,8 @@ export async function logoutAll(req, res) {
 
         await db.collection("sessions").updateMany({userId: ObjectId.createFromHexString(decoded.id), revoked: false}, {$set: {"revoked": true}});
 
+        await client.close();
+
         res.clearCookie("refreshToken");
 
         return res.status(200).json({message: "logged out of all devices successfully"});
